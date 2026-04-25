@@ -8,7 +8,15 @@ const obstacles = [...Array(50)].map((_, i) => ({
 }))
 
 function Obstacle({ args, position, ...props }) {
-  const [ref] = useBox(() => ({ args, mass: 1, position: position, ...props }), useRef())
+  const [ref] = useBox(() => ({
+    args,
+    mass: 5, // Increased mass for stability
+    position: position,
+    material: 'ground',
+    linearDamping: 0.4, // Add damping to prevent excessive movement
+    angularDamping: 0.4,
+    ...props
+  }), useRef())
 
   const groundObjects = useStore((state) => state.groundObjects)
 

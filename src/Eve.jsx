@@ -1,20 +1,20 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { useGLTF } from '@react-three/drei'
-import { useEffect } from 'react'
-import { LoopOnce, LoopRepeat } from 'three'
-import * as THREE from 'three'
+import { LoopOnce, LoopRepeat, Vector3, Box3, MathUtils } from 'three'
 import { useStore } from './Game'
 import { useContactMaterial } from '@react-three/cannon'
+import { useFrame } from '@react-three/fiber'
 
-export default function Eve() {
+export default function Eve({ yaw }) { // Pass yaw as a prop from PlayerCollider
   const ref = useRef()
+  const isRightClick = useRef(false)
+  const currentCamZ = useRef(0.5)
+
   const { nodes, materials } = useGLTF('/models/eve.glb')
   const idleAnimation = useGLTF('/models/eve@idle.glb').animations
   const walkAnimation = useGLTF('/models/eve@walking.glb').animations
   const jumpAnimation = useGLTF('/models/eve@jump.glb').animations
   const punchAnimation = useGLTF('/models/eve@jump.glb').animations
-
-  
 
   const { actions, mixer, playerPosition, monsters, selectedWeapon } = useStore((state) => state)
 
@@ -22,22 +22,36 @@ export default function Eve() {
     fists: { damage: 10, range: 2 },
     sword: { damage: 25, range: 2.5 },
     gun: { damage: 40, range: 10 },
-    health: { damage: 0, range: 0 },
-    armor: { damage: 0, range: 0 },
-    boots: { damage: 0, range: 0 }
   }
 
   useContactMaterial('ground', 'slippery', {
     friction: 0,
     restitution: 0.01,
-    contactEquationStiffness: 1e8,
-    contactEquationRelaxation: 3
   })
+
+// Inside Eve.js
+useFrame((state) => {
+  const targetZ = isRightClick.current ? 0.2 : 0.5;
+  currentCamZ.current = MathUtils.lerp(currentCamZ.current, targetZ, 0.1);
+
+  // OPTION A: If your useFollowCam allows direct mutation (the previous attempt)
+  if (yaw?.offset) {
+    yaw.offset[2] = currentCamZ.current;
+  }
+
+  // OPTION B: Force update the camera's position relative to the group
+  // This is a "manual" zoom override
+  if (isRightClick.current || currentCamZ.current !== 0.5) {
+     const camera = state.camera;
+     // This assumes your followCam is using a pivot system
+     // We adjust the camera's local Z position
+     camera.position.z = currentCamZ.current;
+  }
+});
 
   useEffect(() => {
     actions['idle'] = mixer.clipAction(idleAnimation[0], ref.current)
-    actions['idle'].loop = LoopOnce
-    actions['idle'].clampWhenFinished = true
+    actions['idle'].loop = LoopRepeat // Changed to LoopRepeat for idle
     actions['walk'] = mixer.clipAction(walkAnimation[0], ref.current)
     actions['walk'].loop = LoopRepeat
     actions['jump'] = mixer.clipAction(jumpAnimation[0], ref.current)
@@ -52,56 +66,48 @@ export default function Eve() {
 
   useEffect(() => {
     const handleMouseDown = (e) => {
-      // left click = button 0
-      // Right click = button 2
-      if (e.button === 0 && document.pointerLockElement) {
-        e.preventDefault()
-        console.log('Punch triggered')
+      if (!document.pointerLockElement) return
+
+      // Left Click: Punch
+      if (e.button === 0) {
         if (actions['punch']) {
-          actions['idle'].fadeOut(0.1)
-          actions['punch'].reset().fadeIn(0.1).play()
-          
-          // Check for monsters within punch range
+          actions['punch'].reset().fadeIn(0.2).play()
           const currentWeapon = weaponStats[selectedWeapon] || weaponStats.fists
           monsters.forEach(monsterRef => {
-            if (monsterRef.current && monsterRef.current.visible !== false) {
-              const monsterPos = monsterRef.current.position
-              const distance = Math.sqrt(
-                (playerPosition[0] - monsterPos.x) ** 2 +
-                (playerPosition[1] - monsterPos.y) ** 2 +
-                (playerPosition[2] - monsterPos.z) ** 2
-              )
-              if (distance < currentWeapon.range) { // weapon range
-                monsterRef.current.takeDamage(currentWeapon.damage) // weapon damage
-              }
+            if (monsterRef.current?.visible) {
+              const mPos = monsterRef.current.position
+              const dist = Math.sqrt((playerPosition[0] - mPos.x) ** 2 + (playerPosition[1] - mPos.y) ** 2 + (playerPosition[2] - mPos.z) ** 2)
+              if (dist < currentWeapon.range) monsterRef.current.takeDamage(currentWeapon.damage)
             }
           })
-          
-          setTimeout(() => {
-            actions['punch'].fadeOut(0.1)
-            actions['idle'].reset().fadeIn(0.1).play()
-          }, 600)
         }
+      }
+      
+      // Right Click: Zoom Start
+      if (e.button === 2) {
+        console.log("Zoom In")
+        isRightClick.current = true
       }
     }
 
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
-  }, [actions, playerPosition, monsters, selectedWeapon])
-
-  // Calculate and log the bounding box of the player model
-  useEffect(() => {
-    if (ref.current) {
-      const box = new THREE.Box3().setFromObject(ref.current)
-      const size = box.getSize(new THREE.Vector3())
-      console.log('Player model dimensions:', {
-        width: size.x,
-        height: size.y,
-        depth: size.z,
-        boundingBox: box
-      })
+    const handleMouseUp = (e) => {
+      if (e.button === 2) {
+        console.log("Zoom Out")
+        isRightClick.current = false
+      }
     }
-  }, [])
+
+    const handleContextMenu = (e) => e.preventDefault()
+
+    document.addEventListener('mousedown', handleMouseDown)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('contextmenu', handleContextMenu)
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('contextmenu', handleContextMenu)
+    }
+  }, [actions, playerPosition, monsters, selectedWeapon])
 
   return (
     <group ref={ref} dispose={null}>
@@ -114,5 +120,3 @@ export default function Eve() {
     </group>
   )
 }
-
-useGLTF.preload(['/models/eve.glb', '/models/eve@idle.glb', '/models/eve@walking.glb', '/models/eve@jump.glb'])

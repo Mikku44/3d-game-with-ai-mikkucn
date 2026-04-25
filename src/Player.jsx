@@ -1,5 +1,5 @@
-import { Suspense, useMemo, useRef } from 'react'
-import { Vector3, Euler, Quaternion, Matrix4 } from 'three'
+import { Suspense, useMemo, useRef, useEffect } from 'react'
+import { Vector3, Euler, Quaternion, Matrix4, MathUtils } from 'three'
 import Eve from './Eve'
 import { useCompoundBody } from '@react-three/cannon'
 import useKeyboard from './useKeyboard'
@@ -12,7 +12,13 @@ export default function PlayerCollider({ position }) {
   const playerGrounded = useRef(false)
   const inJumpAction = useRef(false)
   const group = useRef()
-  const { yaw } = useFollowCam(group, [0, 1, 1.5])
+  
+  // Track right-click state
+  const isRightClick = useRef(false)
+  // Current camera Z offset for smooth interpolation
+  const currentCamZ = useRef(0.5)
+
+  const { yaw } = useFollowCam(group, [0.2, 1.3, 0.5])
   const velocity = useMemo(() => new Vector3(), [])
   const inputVelocity = useMemo(() => new Vector3(), [])
   const euler = useMemo(() => new Euler(), [])
@@ -28,7 +34,26 @@ export default function PlayerCollider({ position }) {
 
   const { groundObjects, actions, mixer } = useStore((state) => state)
 
+  // Mouse Listeners for Right Click
+  useEffect(() => {
+    const handleMouseDown = (e) => {
+      if (e.button === 2) isRightClick.current = true
+    }
+    const handleMouseUp = (e) => {
+      if (e.button === 2) isRightClick.current = false
+    }
+    const handleContextMenu = (e) => e.preventDefault() // Stop menu from appearing
 
+    window.addEventListener('mousedown', handleMouseDown)
+    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('contextmenu', handleContextMenu)
+    
+    return () => {
+      window.removeEventListener('mousedown', handleMouseDown)
+      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('contextmenu', handleContextMenu)
+    }
+  }, [])
 
   const [ref, body] = useCompoundBody(
     () => ({
@@ -45,8 +70,8 @@ export default function PlayerCollider({ position }) {
         if (contactNormal.dot(down) > 0.5) {
           if (inJumpAction.current) {
             inJumpAction.current = false
-            actions['jump'].fadeOut(0.1)
-            actions['idle'].reset().fadeIn(0.1).play()
+            actions['jump'].fadeOut(0.3)
+            actions['idle'].reset().fadeIn(0.3).play()
           }
         }
       },
@@ -59,6 +84,16 @@ export default function PlayerCollider({ position }) {
 
   useFrame(({ raycaster }, delta) => {
     let activeAction = 0 // 0:idle, 1:walking, 2:jumping
+
+    // --- SMOOTH CAMERA ZOOM LOGIC ---
+    // Target 0.2 when right-clicking, otherwise 0.5
+    const targetZ = isRightClick.current ? 0.2 : 0.5
+    // Lerp currentCamZ towards targetZ (0.1 is the smoothing factor)
+    currentCamZ.current = MathUtils.lerp(currentCamZ.current, targetZ, 0.1)
+    // Update the followCam offset (assuming yaw has an offset property)
+    if (yaw.offset) {
+      yaw.offset[2] = currentCamZ.current
+    }
 
     body.angularFactor.set(0, 0, 0)
 
@@ -74,6 +109,7 @@ export default function PlayerCollider({ position }) {
         playerGrounded.current = true
       }
     })
+
     if (!playerGrounded.current) {
       body.linearDamping.set(0)
     } else {
@@ -90,6 +126,7 @@ export default function PlayerCollider({ position }) {
       targetQuaternion.normalize()
       group.current.quaternion.rotateTowards(targetQuaternion, delta * 20)
     }
+
     if (document.pointerLockElement) {
       inputVelocity.set(0, 0, 0)
       if (playerGrounded.current) {
@@ -110,28 +147,27 @@ export default function PlayerCollider({ position }) {
           inputVelocity.x = 1
         }
       }
-      inputVelocity.setLength(delta * (keyboard['ShiftLeft'] || keyboard['ShiftRight'] ? 80 : 40))
+      inputVelocity.setLength(delta * (keyboard['ShiftLeft'] || keyboard['ShiftRight'] ? 50 : 40))
 
       if (activeAction !== prevActiveAction.current) {
         if (prevActiveAction.current !== 1 && activeAction === 1) {
-          actions['idle'].fadeOut(0.1)
-          actions['walk'].reset().fadeIn(0.1).play()
+          actions['idle'].fadeOut(0.3)
+          actions['walk'].reset().fadeIn(0.3).play()
         }
         if (prevActiveAction.current !== 0 && activeAction === 0) {
-          actions['walk'].fadeOut(0.1)
-          actions['idle'].reset().fadeIn(0.1).play()
+          actions['walk'].fadeOut(0.3)
+          actions['idle'].reset().fadeIn(0.3).play()
         }
         prevActiveAction.current = activeAction
       }
 
       if (keyboard['Space']) {
         if (playerGrounded.current && !inJumpAction.current) {
-          console.log('jump')
           activeAction = 2
           inJumpAction.current = true
-          actions['walk'].fadeOut(0.1)
-          actions['idle'].fadeOut(0.1)
-          actions['jump'].reset().fadeIn(0.1).play()
+          actions['walk'].fadeOut(0.3)
+          actions['idle'].fadeOut(0.3)
+          actions['jump'].reset().fadeIn(0.3).play()
           inputVelocity.y = 6
         }
       }

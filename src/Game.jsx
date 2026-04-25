@@ -8,27 +8,36 @@ import { useControls } from 'leva'
 import { create } from 'zustand'
 import { AnimationMixer } from 'three'
 
-export const useStore = create(() => ({
+export const useStore = create((set) => ({
   groundObjects: {},
   actions: {},
   mixer: new AnimationMixer(),
   playerPosition: [0, 0, 0],
+  playerHealth: 100,
+  playerMaxHealth: 100,
   showBoxOverlay: false,
   monsters: [],
   enemyCount: 1, // initial count
   showWinner: false,
   showItemShop: false,
-  selectedWeapon: 'gun', // default weapon
+  selectedWeapon: 'fists', // default weapon
+    gameState: 'menu', // 'menu' | 'playing' | 'paused'
+    setGameState: (state) => set({ gameState: state }),
   weaponAmmo: {
-    gun: { current: 2, reserve: 9, max: 9 },
-    sword: { current: null, reserve: null, max: null },
     fists: { current: null, reserve: null, max: null },
-    health: { current: null, reserve: null, max: null },
-    armor: { current: null, reserve: null, max: null },
-    boots: { current: null, reserve: null, max: null }
+
   },
   bossHealth: 100, // boss health for UI display
-  bossMaxHealth: 100
+  bossMaxHealth: 100,
+  addMonster: (ref) =>
+    set((state) => ({
+      monsters: [...state.monsters, ref],
+    })),
+
+  removeMonster: (ref) =>
+    set((state) => ({
+      monsters: state.monsters.filter((m) => m !== ref),
+    })),
 }))
 
 function ToggleDebug({ children }) {
@@ -38,14 +47,28 @@ function ToggleDebug({ children }) {
 }
 
 export default function Game() {
+
+  const { bossHealth } = useStore()
+
   return (
     <>
       <ToggleDebug >
         <Floor  />
         {/* <Obstacles /> */}
         <Player position={[0, 1, 0]} />
+       
         <SmallWoodenBox position={[2, 0, 0]} />
-        <Monster position={[0, 1, 8]} />
+        {/* {Array(10).fill().map((_, i) => (
+  <Monster 
+    key={i} 
+    position={[(Math.random() - 0.5) * 20, 1, (Math.random() - 0.5) * 20]} 
+  />
+))} */}
+
+<Monster 
+    position={[(Math.random() - 0.5) * 20, 1, (Math.random() - 0.5) * 20]} 
+  />
+
       </ToggleDebug>
     </>
   )

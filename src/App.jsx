@@ -5,6 +5,9 @@ import { Physics } from '@react-three/cannon'
 import { Suspense, useState, useEffect, useRef } from 'react'
 import { useStore } from './Game'
 import { useGLTF } from '@react-three/drei'
+import LossOverlay from './ui/LossOverlay'
+import WinOverlay from './ui/winOverlay'
+import MenuScreen from './ui/MenuScreen'
 
 function Loader() {
   const { progress } = useProgress()
@@ -89,264 +92,234 @@ function BoxOverlay() {
   )
 }
 
-function WinnerOverlay() {
-  const { showWinner } = useStore()
 
-  if (!showWinner) return null
+
+
+
+function VitalCurve({ healthPercent }) {
+  const canvasRef = useRef()
+  const frameRef = useRef(0)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    let animationFrame
+
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      // Dynamic settings based on health
+      const isLow = healthPercent < 30
+      const color = isLow ? '#ff4444' : '#ffffff'
+      const speed = isLow ? 0.15 : 0.08 // Heart beats faster when health is low
+      
+      frameRef.current += speed
+
+      ctx.beginPath()
+      ctx.lineWidth = 2
+      ctx.strokeStyle = color
+      ctx.shadowBlur = 8
+      ctx.shadowColor = color
+
+      for (let x = 0; x < canvas.width; x++) {
+        // Base sine wave
+        let y = Math.sin(x * 0.05 + frameRef.current) * 10
+        
+        // Add a "heartbeat" spike every now and then
+        if ((x + Math.floor(frameRef.current * 10)) % 100 < 10) {
+          y -= Math.sin(x * 0.5) * 20 
+        }
+
+        if (x === 0) ctx.moveTo(x, 25 + y)
+        else ctx.lineTo(x, 25 + y)
+      }
+
+      ctx.stroke()
+      animationFrame = requestAnimationFrame(draw)
+    }
+
+    draw()
+    return () => cancelAnimationFrame(animationFrame)
+  }, [healthPercent])
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      background: 'rgba(0,0,0,0.9)',
-      zIndex: 1000,
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      color: 'white',
-      fontSize: '48px',
-      fontWeight: 'bold'
-    }}>
-      <div>🎉 YOU WIN! 🎉</div>
-      <div style={{ fontSize: '24px', marginTop: '20px' }}>
-        All enemies defeated!
-      </div>
-      <button
-        style={{
-          marginTop: '40px',
-          padding: '15px 30px',
-          fontSize: '20px',
-          background: 'green',
-          color: 'white',
-          border: 'none',
-          borderRadius: '10px',
-          cursor: 'pointer'
-        }}
-        onClick={() => window.location.reload()}
-      >
-        Play Again
-      </button>
-    </div>
+    <canvas 
+      ref={canvasRef} 
+      width="180" 
+      height="50" 
+      style={{ opacity: 0.8, marginBottom: '-10px' }} 
+    />
   )
 }
 
 function WeaponHUD() {
-  const { selectedWeapon, weaponAmmo } = useStore()
+  const { 
+    selectedWeapon, 
+    weaponAmmo, 
+    playerHealth, 
+    playerMaxHealth 
+  } = useStore()
+
   const weaponMap = {
-    fists: { icon: '👊', label: 'Melee', color: '#ffffff' },
-    sword: { icon: '⚔️', label: 'Blade', color: '#f8f8f2' },
-    gun: { icon: '🔫', label: 'Pistol', color: '#a7ffba' }
+    fists: { label: 'MELEE' },
+    sword: { label: 'BLADE' },
+    gun: { label: 'PISTOL' },
   }
+  
   const weapon = weaponMap[selectedWeapon] || weaponMap.fists
   const ammo = weaponAmmo[selectedWeapon] || { current: 0, reserve: 0, max: 1 }
-  const fill = ammo.max ? Math.max(0, Math.min(100, (ammo.current / ammo.max) * 100)) : 0
+  const healthPercent = Math.max(0, (playerHealth / playerMaxHealth) * 100)
 
   return (
     <div style={{
       position: 'fixed',
-      bottom: '20px',
-      right: '20px',
-      width: '260px',
-      height: '132px',
-      padding: '12px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      background: 'rgba(10, 10, 15, 0.85)',
-      border: '1px solid rgba(255,255,255,0.12)',
-      borderRadius: '18px',
-      boxShadow: '0 0 0 1px rgba(255,255,255,0.03), 0 16px 40px rgba(0,0,0,0.45)',
+      bottom: '40px',
+      right: '40px',
       color: 'white',
+      fontFamily: 'monospace',
       zIndex: 1000,
-      fontFamily: 'Arial, sans-serif'
+      textAlign: 'right',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '20px'
     }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            border: '1px solid rgba(255,255,255,0.18)',
-            background: 'rgba(255,255,255,0.04)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            fontSize: '24px'
-          }}>
-            {weapon.icon}
-          </div>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center'
-          }}>
-            <div style={{ fontSize: '12px', color: '#9ea6b8', textTransform: 'uppercase', letterSpacing: '0.2em' }}>
-              Primary
-            </div>
-            <div style={{ fontSize: '16px', fontWeight: '700' }}>
-              {weapon.label}
-            </div>
-          </div>
+      
+      {/* --- PLAYER HEALTH SECTION (WITH CANVAS CURVE) --- */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+        <div style={{ fontSize: '10px', letterSpacing: '3px', opacity: 0.6, marginBottom: '4px' }}>
+          VITAL SIGNS
         </div>
+        
+        {/* Animated Curve Canvas */}
+        <VitalCurve healthPercent={healthPercent} />
+
+        {/* Minimal Progress Bar */}
         <div style={{
-          width: '100%',
-          height: '8px',
-          borderRadius: '4px',
-          background: 'rgba(255,255,255,0.08)',
+          width: '180px',
+          height: '4px',
+          background: 'rgba(255,255,255,0.1)',
+          position: 'relative',
           overflow: 'hidden'
         }}>
           <div style={{
-            width: `${fill}%`,
+            width: `${healthPercent}%`,
             height: '100%',
-            background: 'linear-gradient(90deg, #00ff90, #00cabb)',
-            transition: 'width 0.2s ease'
+            background: healthPercent < 30 ? '#ff4444' : 'white',
+            transition: 'width 0.4s ease-out',
+            boxShadow: healthPercent < 30 ? '0 0 10px #ff4444' : '0 0 10px white'
           }} />
         </div>
+        
+        <div style={{ fontSize: '12px', marginTop: '8px', opacity: 0.8 }}>
+          {playerHealth} <span style={{ opacity: 0.4 }}>/ {playerMaxHealth} HP</span>
+        </div>
       </div>
-      <div style={{ position: 'relative', width: '108px', height: '108px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+
+      {/* --- WEAPON & AMMO SECTION --- */}
+      <div>
+        <div style={{ fontSize: '10px', letterSpacing: '3px', opacity: 0.6, marginBottom: '4px' }}>
+          {weapon.label}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: '8px' }}>
+          <span style={{ fontSize: '48px', fontWeight: '200', lineHeight: '1' }}>
+            {ammo.current ?? 0}
+          </span>
+          <span style={{ fontSize: '18px', opacity: 0.4 }}>
+            / {ammo.reserve ?? 0}
+          </span>
+        </div>
+        
         <div style={{
-          position: 'absolute',
-          inset: 0,
-          borderRadius: '50%',
-          background: `conic-gradient(rgba(0,255,144,0.85) ${fill * 3.6}deg, rgba(255,255,255,0.08) 0deg)`,
-          filter: 'blur(1px)'
-        }} />
-        <div style={{
-          position: 'absolute',
-          inset: '8px',
-          borderRadius: '50%',
-          background: 'rgba(10, 10, 15, 0.95)',
-          border: '1px solid rgba(255,255,255,0.14)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center'
+          width: '120px',
+          height: '2px',
+          background: 'rgba(255,255,255,0.2)',
+          marginTop: '8px',
+          marginLeft: 'auto'
         }}>
-          <div style={{ fontSize: '28px', fontWeight: '700' }}>{ammo.current ?? 0}</div>
-          <div style={{ fontSize: '14px', color: '#9ea6b8' }}>/ {ammo.reserve ?? 0}</div>
-          <div style={{ marginTop: '6px', fontSize: '10px', letterSpacing: '0.2em', color: '#7a8a9b' }}>AMMO</div>
+          <div style={{
+            width: `${Math.min(100, (ammo.current / ammo.max) * 100)}%`,
+            height: '100%',
+            background: 'white',
+            boxShadow: '0 0 10px white'
+          }} />
         </div>
       </div>
     </div>
   )
 }
-
 function ItemShop() {
   const { showItemShop, selectedWeapon } = useStore()
-
-
-
   if (!showItemShop) return null
 
   const items = [
-    { id: 'fists', name: 'Fists', price: 0, damage: 10, emoji: '👊', category: 'melee' },
-    { id: 'sword', name: 'Sword', price: 500, damage: 25, emoji: '⚔️', category: 'melee' },
-    { id: 'gun', name: 'Pistol', price: 800, damage: 40, emoji: '🔫', category: 'ranged' },
-    { id: 'health', name: 'Health Potion', price: 300, damage: 0, emoji: '🧪', category: 'consumable' },
-    { id: 'armor', name: 'Armor', price: 600, damage: 0, emoji: '🛡️', category: 'defense' },
-    { id: 'boots', name: 'Speed Boots', price: 400, damage: 0, emoji: '👢', category: 'utility' }
+    { id: 'fists', name: 'MELEE', price: 0 },
+    { id: 'sword', name: 'BLADE', price: 500 },
+    { id: 'gun', name: 'PISTOL', price: 800 },
+    { id: 'health', name: 'RECOVERY', price: 300 },
+    { id: 'armor', name: 'VEST', price: 600 },
+    { id: 'boots', name: 'SPEED', price: 400 }
   ]
-
-  const selectItem = (itemId) => {
-    useStore.setState({ selectedWeapon: itemId })
-    console.log(`Selected ${itemId}`)
-  }
 
   return (
     <div style={{
       position: 'fixed',
-      bottom: '20px',
-      right: '20px',
-      width: '400px',
-      height: '300px',
-      background: 'rgba(20, 20, 30, 0.95)',
-      border: '2px solid #ff4655',
-      borderRadius: '10px',
-      zIndex: 1000,
+      inset: 0,
+      background: 'rgba(0,0,0,0.85)',
       display: 'flex',
-      flexDirection: 'column',
-      color: 'white',
-      fontFamily: 'Arial, sans-serif'
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 2000,
+      backdropFilter: 'blur(10px)'
     }}>
-      <div style={{
-        padding: '10px',
-        background: '#ff4655',
-        borderRadius: '8px 8px 0 0',
-        textAlign: 'center',
-        fontWeight: 'bold'
-      }}>
-        ITEM SHOP
-      </div>
-      
-      <div style={{
-        flex: 1,
-        padding: '10px',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '8px',
-        overflowY: 'auto'
-      }}>
-        {items.map((item) => (
-          <div
-            key={item.id}
-            onClick={() => selectItem(item.id)}
-            style={{
-              background: selectedWeapon === item.id ? '#ff4655' : 'rgba(40, 40, 50, 0.8)',
-              border: selectedWeapon === item.id ? '2px solid #ffffff' : '1px solid #666',
-              borderRadius: '5px',
-              padding: '8px',
-              textAlign: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: '70px'
-            }}
-          >
-            <div style={{ fontSize: '24px', marginBottom: '4px' }}>{item.emoji}</div>
-            <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '2px' }}>{item.name}</div>
-            <div style={{ fontSize: '10px', color: '#ff4655' }}>${item.price}</div>
-            {item.damage > 0 && <div style={{ fontSize: '10px', color: '#ffff00' }}>DMG: {item.damage}</div>}
-          </div>
-        ))}
-      </div>
-      
-      <div style={{
-        padding: '8px',
-        background: 'rgba(30, 30, 40, 0.9)',
-        borderRadius: '0 0 8px 8px',
-        textAlign: 'center',
-        fontSize: '12px'
-      }}>
-        Press 'B' to toggle shop • Selected: {items.find(i => i.id === selectedWeapon)?.name}
+      <div style={{ width: '600px', borderTop: '1px solid white', borderBottom: '1px solid white', padding: '40px 0' }}>
+        <div style={{ color: 'white', letterSpacing: '8px', textAlign: 'center', marginBottom: '30px', fontSize: '12px' }}>
+          SUPPLIES
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.1)' }}>
+          {items.map((item) => (
+            <div
+              key={item.id}
+              onClick={() => useStore.setState({ selectedWeapon: item.id })}
+              style={{
+                padding: '20px',
+                background: selectedWeapon === item.id ? 'white' : 'black',
+                color: selectedWeapon === item.id ? 'black' : 'white',
+                cursor: 'pointer',
+                textAlign: 'center',
+                transition: '0.2s',
+                fontFamily: 'monospace'
+              }}
+            >
+              <div style={{ fontSize: '11px', letterSpacing: '2px' }}>{item.name}</div>
+              <div style={{ fontSize: '10px', opacity: 0.6, marginTop: '5px' }}>${item.price}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ color: 'white', fontSize: '9px', textAlign: 'center', marginTop: '20px', opacity: 0.5, letterSpacing: '2px' }}>
+          PRESS 'B' TO RETURN TO COMBAT
+        </div>
       </div>
     </div>
   )
 }
 
 export default function App() {
-  const { enemyCount, selectedWeapon, bossHealth, bossMaxHealth } = useStore()
+  const { enemyCount, 
+    selectedWeapon, 
+    bossHealth, 
+    bossMaxHealth,
+    gameState,
+    playerHealth,
+    playerMaxHealth } = useStore()
 
-  const weaponEmojis = {
-    fists: '👊',
-    sword: '⚔️',
-    gun: '🔫',
-    health: '🧪',
-    armor: '🛡️',
-    boots: '👢'
-  }
 
-  const weaponOrder = ['fists', 'sword', 'gun'] // Weapons to cycle through
+
+  const weaponOrder = ['fists', 'sword', 'gun'] 
 
   useEffect(() => {
     const handleKeyPress = (e) => {
       if (e.code === 'KeyB') {
+        return;
         const { showItemShop } = useStore.getState()
         useStore.setState({ showItemShop: !showItemShop })
       }
@@ -384,7 +357,13 @@ export default function App() {
 
   return (
     <>
-      <div id="instructions">
+      <div
+      style={{
+        position:"absolute",
+        left: "0px"
+      }}
+      className='relative left-0 '
+      id="instructions">
         WASD to move
         <br />
         SHIFT to run
@@ -393,8 +372,6 @@ export default function App() {
         <br />
         Right-click to punch
         <br />
-        Mouse wheel to switch weapons
-        <br />
         B to open item shop
         <br />
         Model from{' '}
@@ -402,46 +379,67 @@ export default function App() {
           Mixamo
         </a>
       </div>
-      <div
-        style={{
-          position: 'fixed',
-          top: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'rgba(0,0,0,0.8)',
-          padding: '15px 20px',
-          borderRadius: '10px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '10px',
-          minWidth: '300px'
-        }}
-      >
-        <div style={{ color: 'white', fontSize: '16px', fontWeight: 'bold' }}>
-          BOSS HEALTH
-        </div>
-        <div style={{
-          width: '100%',
-          height: '20px',
-          background: 'rgba(255,255,255,0.2)',
-          borderRadius: '10px',
-          overflow: 'hidden',
-          border: '2px solid rgba(255,255,255,0.3)'
-        }}>
-          <div style={{
-            width: `${(bossHealth / bossMaxHealth) * 100}%`,
-            height: '100%',
-            background: bossHealth > 50 ? 'linear-gradient(90deg, #00ff00, #00cc00)' : 
-                       bossHealth > 25 ? 'linear-gradient(90deg, #ffff00, #ffcc00)' : 
-                       'linear-gradient(90deg, #ff0000, #cc0000)',
-            transition: 'width 0.3s ease, background 0.3s ease'
-          }} />
-        </div>
-        <div style={{ color: 'white', fontSize: '14px' }}>
-          {bossHealth}/{bossMaxHealth} HP
-        </div>
+       {/* Boss Health - Ultra Minimal White Design */}
+    <div style={{
+      position: 'fixed',
+      zIndex: 1000,
+      top: '40px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '6px',
+      minWidth: '400px'
+    }}>
+      <div style={{ 
+        color: 'white', 
+        fontSize: '12px', 
+        letterSpacing: '4px', 
+        fontWeight: '300',
+        textShadow: '0 0 10px rgba(255,255,255,0.5)' 
+      }}>
+        THREAT LEVEL: CRITICAL
       </div>
+      
+      <div style={{
+        width: '100%',
+        height: '4px',
+        background: 'rgba(255,255,255,0.1)',
+        position: 'relative'
+      }}>
+        {/* Main Health Bar */}
+        <div style={{
+          width: `${(bossHealth / bossMaxHealth) * 100}%`,
+          height: '100%',
+          background: '#fff',
+          transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+          boxShadow: '0 0 15px rgba(255,255,255,0.6)'
+        }} />
+        
+        {/* Minimal Tick Marks */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundImage: 'linear-gradient(90deg, transparent 24%, rgba(255,255,255,0.2) 25%)',
+          backgroundSize: '25% 100%'
+        }} />
+      </div>
+        
+      <div style={{ 
+        color: 'white', 
+        fontSize: '10px', 
+        fontFamily: 'monospace',
+        opacity: 0.8 
+      }}>
+        {bossHealth} / {bossMaxHealth}
+      </div>
+    </div>
+      <LossOverlay />
+      <WinOverlay />
       <WeaponHUD />
       <div
         style={{
@@ -481,7 +479,9 @@ export default function App() {
       <Suspense fallback={<div>Loading overlay...</div>}>
         <BoxOverlay />
       </Suspense>
-      <WinnerOverlay />
+
+      <MenuScreen />
+  
       <ItemShop />
       <Canvas shadows onPointerDown={(e) => e.target.requestPointerLock()}>
         <Suspense fallback={<Loader />}>
@@ -490,7 +490,19 @@ export default function App() {
           <spotLight position={[-2.5, 5, 5]} angle={Math.PI / 3} penumbra={0.5} castShadow shadow-mapSize-height={2048} shadow-mapSize-width={2048} intensity={Math.PI * 75} />
           <spotLight position={[0, 8, 0]} angle={Math.PI / 4} penumbra={0.3} castShadow shadow-mapSize-height={2048} shadow-mapSize-width={2048} intensity={Math.PI * 50} />
           <directionalLight position={[5, 5, 5]} intensity={0.5} castShadow />
-          <Physics>
+          <Physics
+            paused={gameState !== 'playing'}
+            gravity={[0, -30, 0]}
+            defaultContactMaterial={{
+              friction: 0.1,
+              restitution: 0.3,
+            }}
+            material={{
+              ground: { friction: 0.4, restitution: 0.3 },
+              slippery: { friction: 0.02, restitution: 0.8 },
+              monster: { friction: 0.1, restitution: 0.4 },
+            }}
+          >
             <Game />
           </Physics>
           <Stats />
