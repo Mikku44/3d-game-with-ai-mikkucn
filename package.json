@@ -21,5 +21,8 @@
     "start": "r3f-pack start",
     "build": "r3f-pack build",
     "deploy": "gh-pages -d build"
+  },
+  "dependencies": {
+    "framer-motion": "^12.38.0"
   }
 }

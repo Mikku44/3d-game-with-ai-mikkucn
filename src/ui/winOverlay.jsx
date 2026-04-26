@@ -1,126 +1,123 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useState ,useMemo} from 'react'
+import { motion, AnimatePresence } from 'framer-motion' 
 import { useStore } from '../Game'
 
-function WinOverlay() {
-  const { bossHealth, bossMaxHealth } = useStore()
-  const containerRef = useRef()
-
+export default function WinOverlay() {
+  const { bossHealth, bossMaxHealth, playerMaxHealth } = useStore()
   const isWin = bossHealth <= 0
 
-  // 🔓 unlock pointer on win
+   const winAudio = useMemo(() => {
+      if (typeof Audio !== 'undefined') {
+        const audio = new Audio('/sounds/win.mp3')
+        audio.volume = 0.5
+        return audio
+      }
+      return null
+    }, [])
+
   useEffect(() => {
     if (isWin) {
-      document.exitPointerLock()
+      winAudio?.play().catch(() => {})
+      document.exitPointerLock?.()
     }
-  }, [isWin])
-
-  // 🎬 auto scroll
-  useEffect(() => {
-    if (!isWin || !containerRef.current) return
-
-    const el = containerRef.current
-    let start = null
-
-    function animate(ts) {
-      if (!start) start = ts
-      const progress = ts - start
-
-      // scroll speed
-      el.scrollTop = progress * 0.05
-
-      requestAnimationFrame(animate)
-    }
-
-    requestAnimationFrame(animate)
-  }, [isWin])
-
-  if (!isWin) return null
+  }, [isWin, winAudio])
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'black',
-      color: 'white',
-      zIndex: 4000,
-      overflow: 'hidden',
-      fontFamily: 'monospace'
-    }}>
-      <div
-        ref={containerRef}
-        style={{
-          position: 'absolute',
-          width: '100%',
-          height: '100%',
-          overflow: 'hidden'
-        }}
-      >
-        <div style={{
-          position: 'absolute',
-          bottom: '-100%',
-          width: '100%',
-          textAlign: 'center',
-          lineHeight: '2',
-          letterSpacing: '3px'
-        }}>
-          <h1 style={{ marginBottom: '80px' }}>MISSION COMPLETE</h1>
+    <AnimatePresence>
+      {isWin && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 2, ease: "easeInOut" }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'black',
+            color: 'white',
+            zIndex: 4000,
+            fontFamily: 'monospace',
+            overflow: 'hidden',
+            display: 'flex',
+            justifyContent: 'center'
+          }}
+        >
+          {/* Scrolling Content */}
+          <motion.div
+            initial={{ y: '100vh' }}
+            animate={{ y: '-100%' }}
+            transition={{ 
+              duration: 25, // Adjust speed here (higher = slower)
+              ease: "linear",
+              delay: 1 // Wait for the fade-in before starting scroll
+            }}
+            style={{
+              position: 'absolute',
+              textAlign: 'center',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '60px',
+              paddingTop: '50px'
+            }}
+          >
+            <h1 style={{ fontSize: '3rem', letterSpacing: '10px' }}>MISSION COMPLETE</h1>
+            
+            <section>
+              <p style={{ color: '#888' }}>— STATUS —</p>
+              <p>YOU SURVIVED THE BATHROOM</p>
+            </section>
 
-          <p>—</p>
-          <p>YOU SURVIVED</p>
-          <p>THE FINAL ENCOUNTER</p>
-          <p>—</p>
+            <section>
+              <p style={{ color: '#888' }}>DESIGN & DEV</p>
+              <p>MIKKU CN</p>
+            </section>
 
-          <br /><br />
+            <section>
+              <p style={{ color: '#888' }}>ASSETS</p>
+              <p>The Bathroom Free (GLB)</p>
+              <p>Mixamo Animations</p>
+            </section>
 
-          <p>GAME DESIGN</p>
-          <p>MIKKU CN</p>
+            <section>
+              <p style={{ color: '#888' }}>ENGINE</p>
+              <p>React Three Fiber + Cannon</p>
+            </section>
 
-          <br />
+            <div style={{ height: '100px' }} />
+            
+            <h2>THANK YOU FOR PLAYING</h2>
 
-          <p>DEVELOPMENT</p>
-          <p>MIKKU CN</p>
-
-          <br />
-
-          <p>3D MODELS</p>
-          <p>Mixamo</p>
-
-          <br />
-
-          <p>POWERED BY</p>
-          <p>React Three Fiber</p>
-
-          <br /><br />
-
-          <p>THANK YOU FOR PLAYING</p>
-
-          <div style={{ marginTop: '120px' }}>
-            <button
+            {/* Restart Button */}
+            <motion.button
+              whileHover={{ scale: 1.1, backgroundColor: 'white', color: 'black' }}
+              whileTap={{ scale: 0.9 }}
               onClick={() => {
                 useStore.setState({
-                  playerHealth: useStore.getState().playerMaxHealth,
-                  bossHealth: useStore.getState().bossMaxHealth,
+                  playerHealth: playerMaxHealth,
+                  bossHealth: bossMaxHealth,
+                  gameState: 'playing'
                 })
-
                 document.body.requestPointerLock?.()
               }}
               style={{
-                padding: '10px 20px',
-                background: 'white',
-                color: 'black',
-                border: 'none',
-                cursor: 'pointer'
+                alignSelf: 'center',
+                padding: '12px 30px',
+                background: 'transparent',
+                color: 'white',
+                border: '1px solid white',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                marginTop: '40px'
               }}
             >
-              RESTART
-            </button>
-          </div>
-
-          <div style={{ height: '300px' }} />
-        </div>
-      </div>
-    </div>
+              RESTART SIMULATION
+            </motion.button>
+            
+            <div style={{ height: '200px' }} />
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
-
-export default WinOverlay

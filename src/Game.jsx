@@ -7,6 +7,8 @@ import Monster from './Monster'
 import { useControls } from 'leva'
 import { create } from 'zustand'
 import { AnimationMixer } from 'three'
+import Bathroom from './bathroom'
+import SoundManager from './SoundManager'
 
 export const useStore = create((set) => ({
   groundObjects: {},
@@ -23,6 +25,9 @@ export const useStore = create((set) => ({
   selectedWeapon: 'fists', // default weapon
     gameState: 'menu', // 'menu' | 'playing' | 'paused'
     setGameState: (state) => set({ gameState: state }),
+
+     currentBoxModel: '/models/small_wooden_box/scene.gltf',
+  setCurrentBoxModel: (modelPath) => set({ currentBoxModel: modelPath }),
   weaponAmmo: {
     fists: { current: null, reserve: null, max: null },
 
@@ -53,21 +58,23 @@ export default function Game() {
   return (
     <>
       <ToggleDebug >
+        <SoundManager />
+        <Bathroom position={[0, 0, 0]} />
         <Floor  />
         {/* <Obstacles /> */}
         <Player position={[0, 1, 0]} />
        
         <SmallWoodenBox position={[2, 0, 0]} />
-        {/* {Array(10).fill().map((_, i) => (
+        {Array(4).fill().map((_, i) => (
   <Monster 
     key={i} 
     position={[(Math.random() - 0.5) * 20, 1, (Math.random() - 0.5) * 20]} 
   />
-))} */}
+))}
 
-<Monster 
+{/* <Monster 
     position={[(Math.random() - 0.5) * 20, 1, (Math.random() - 0.5) * 20]} 
-  />
+  /> */}
 
       </ToggleDebug>
     </>

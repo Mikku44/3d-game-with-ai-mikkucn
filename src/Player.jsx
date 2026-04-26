@@ -8,15 +8,22 @@ import { Vec3 } from 'cannon-es'
 import useFollowCam from './useFollowCam'
 import { useStore } from './Game'
 
+// --- Audio System ---
+const sounds = {
+  walk: new Audio('/sounds/walk.mp3'),
+  jump: new Audio('/sounds/jump.mp3'), // Ensure this exists
+  zoom: new Audio('/sounds/zoom.mp3'),
+}
+sounds.walk.loop = true
+sounds.walk.volume = 0.1
+
 export default function PlayerCollider({ position }) {
   const playerGrounded = useRef(false)
   const inJumpAction = useRef(false)
   const group = useRef()
-  
-  // Track right-click state
   const isRightClick = useRef(false)
-  // Current camera Z offset for smooth interpolation
   const currentCamZ = useRef(0.5)
+  const isWalkingSoundPlaying = useRef(false) // Track sound state
 
   const { yaw } = useFollowCam(group, [0.2, 1.3, 0.5])
   const velocity = useMemo(() => new Vector3(), [])
@@ -29,20 +36,28 @@ export default function PlayerCollider({ position }) {
   const contactNormal = useMemo(() => new Vec3(0, 0, 0), [])
   const down = useMemo(() => new Vec3(0, -1, 0), [])
   const rotationMatrix = useMemo(() => new Matrix4(), [])
-  const prevActiveAction = useRef(0) // 0:idle, 1:walking, 2:jumping
+  const prevActiveAction = useRef(0) 
   const keyboard = useKeyboard()
 
   const { groundObjects, actions, mixer } = useStore((state) => state)
 
-  // Mouse Listeners for Right Click
+  // Zoom Sound Logic
   useEffect(() => {
     const handleMouseDown = (e) => {
-      if (e.button === 2) isRightClick.current = true
+      if (e.button === 2) {
+        isRightClick.current = true
+        sounds.zoom.currentTime = 0
+        sounds.zoom.play().catch(() => {})
+      }
     }
     const handleMouseUp = (e) => {
-      if (e.button === 2) isRightClick.current = false
+      if (e.button === 2) {
+        isRightClick.current = false
+        sounds.zoom.currentTime = 0
+        sounds.zoom.play().catch(() => {})
+      }
     }
-    const handleContextMenu = (e) => e.preventDefault() // Stop menu from appearing
+    const handleContextMenu = (e) => e.preventDefault()
 
     window.addEventListener('mousedown', handleMouseDown)
     window.addEventListener('mouseup', handleMouseUp)
@@ -52,6 +67,7 @@ export default function PlayerCollider({ position }) {
       window.removeEventListener('mousedown', handleMouseDown)
       window.removeEventListener('mouseup', handleMouseUp)
       window.removeEventListener('contextmenu', handleContextMenu)
+      sounds.walk.pause()
     }
   }, [])
 
@@ -85,29 +101,22 @@ export default function PlayerCollider({ position }) {
   useFrame(({ raycaster }, delta) => {
     let activeAction = 0 // 0:idle, 1:walking, 2:jumping
 
-    // --- SMOOTH CAMERA ZOOM LOGIC ---
-    // Target 0.2 when right-clicking, otherwise 0.5
+    // Smooth Zoom
     const targetZ = isRightClick.current ? 0.2 : 0.5
-    // Lerp currentCamZ towards targetZ (0.1 is the smoothing factor)
     currentCamZ.current = MathUtils.lerp(currentCamZ.current, targetZ, 0.1)
-    // Update the followCam offset (assuming yaw has an offset property)
-    if (yaw.offset) {
-      yaw.offset[2] = currentCamZ.current
-    }
+    if (yaw.offset) yaw.offset[2] = currentCamZ.current
 
     body.angularFactor.set(0, 0, 0)
-
     ref.current.getWorldPosition(worldPosition)
     useStore.setState({ playerPosition: worldPosition.toArray() })
 
+    // Ground Check
     playerGrounded.current = false
     raycasterOffset.copy(worldPosition)
     raycasterOffset.y += 0.01
     raycaster.set(raycasterOffset, down)
     raycaster.intersectObjects(Object.values(groundObjects), false).forEach((i) => {
-      if (i.distance < 0.021) {
-        playerGrounded.current = true
-      }
+      if (i.distance < 0.021) playerGrounded.current = true
     })
 
     if (!playerGrounded.current) {
@@ -116,39 +125,47 @@ export default function PlayerCollider({ position }) {
       body.linearDamping.set(0.9999999)
     }
 
+    // Rotation Logic
     const distance = worldPosition.distanceTo(group.current.position)
-
     rotationMatrix.lookAt(worldPosition, group.current.position, group.current.up)
     targetQuaternion.setFromRotationMatrix(rotationMatrix)
     if (distance > 0.0001 && !group.current.quaternion.equals(targetQuaternion)) {
-      targetQuaternion.z = 0
-      targetQuaternion.x = 0
-      targetQuaternion.normalize()
+      targetQuaternion.z = 0; targetQuaternion.x = 0; targetQuaternion.normalize()
       group.current.quaternion.rotateTowards(targetQuaternion, delta * 20)
     }
 
     if (document.pointerLockElement) {
       inputVelocity.set(0, 0, 0)
+      
+      // Movement Detection
+      const isMoving = keyboard['KeyW'] || keyboard['KeyS'] || keyboard['KeyA'] || keyboard['KeyD']
+      
       if (playerGrounded.current) {
-        if (keyboard['KeyW']) {
+        if (isMoving) {
           activeAction = 1
-          inputVelocity.z = -1
-        }
-        if (keyboard['KeyS']) {
-          activeAction = 1
-          inputVelocity.z = 1
-        }
-        if (keyboard['KeyA']) {
-          activeAction = 1
-          inputVelocity.x = -1
-        }
-        if (keyboard['KeyD']) {
-          activeAction = 1
-          inputVelocity.x = 1
+          if (keyboard['KeyW']) inputVelocity.z = -1
+          if (keyboard['KeyS']) inputVelocity.z = 1
+          if (keyboard['KeyA']) inputVelocity.x = -1
+          if (keyboard['KeyD']) inputVelocity.x = 1
         }
       }
-      inputVelocity.setLength(delta * (keyboard['ShiftLeft'] || keyboard['ShiftRight'] ? 50 : 40))
 
+      // --- WALK SOUND LOGIC ---
+      if (activeAction === 1 && playerGrounded.current) {
+        if (!isWalkingSoundPlaying.current) {
+          sounds.walk.play().catch(() => {})
+          isWalkingSoundPlaying.current = true
+        }
+      } else {
+        if (isWalkingSoundPlaying.current) {
+          sounds.walk.pause()
+          isWalkingSoundPlaying.current = false
+        }
+      }
+
+      inputVelocity.setLength(delta * (keyboard['ShiftLeft'] || keyboard['ShiftRight'] ? 42 : 40))
+
+      // Action Transitions
       if (activeAction !== prevActiveAction.current) {
         if (prevActiveAction.current !== 1 && activeAction === 1) {
           actions['idle'].fadeOut(0.3)
@@ -161,10 +178,16 @@ export default function PlayerCollider({ position }) {
         prevActiveAction.current = activeAction
       }
 
+      // --- JUMP SOUND LOGIC ---
       if (keyboard['Space']) {
         if (playerGrounded.current && !inJumpAction.current) {
           activeAction = 2
           inJumpAction.current = true
+          
+          // Play Jump SFX
+          sounds.jump.currentTime = 0
+          sounds.jump.play().catch(() => {})
+
           actions['walk'].fadeOut(0.3)
           actions['idle'].fadeOut(0.3)
           actions['jump'].reset().fadeIn(0.3).play()
@@ -176,10 +199,10 @@ export default function PlayerCollider({ position }) {
       quat.setFromEuler(euler)
       inputVelocity.applyQuaternion(quat)
       velocity.set(inputVelocity.x, inputVelocity.y, inputVelocity.z)
-
       body.applyImpulse([velocity.x, velocity.y, velocity.z], [0, 0, 0])
     }
 
+    // Mixer Updates
     if (activeAction === 1) {
       const isRunning = keyboard['ShiftLeft'] || keyboard['ShiftRight']
       mixer.update(distance / (isRunning ? 1.5 : 3))
@@ -194,7 +217,7 @@ export default function PlayerCollider({ position }) {
     <>
       <group ref={group} position={position}>
         <Suspense fallback={null}>
-          <Eve />
+          <Eve yaw={yaw} />
         </Suspense>
       </group>
     </>

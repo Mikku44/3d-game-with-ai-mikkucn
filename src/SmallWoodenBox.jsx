@@ -6,6 +6,10 @@ import * as THREE from 'three'
 import { useStore } from './Game'
 import useKeyboard from './useKeyboard'
 
+// --- Audio Setup ---
+const openSound = new Audio('/sounds/open.mp3')
+openSound.volume = 0.1
+
 // Reusable raycaster aimed at screen center (crosshair)
 const _raycaster = new THREE.Raycaster()
 const _center = new THREE.Vector2(0, 0) // NDC center = crosshair
@@ -46,6 +50,11 @@ export default function SmallWoodenBox(props) {
     const ePressed = keyboard['KeyE']
 
     if (isClose && ePressed && !lastEPress.current) {
+      // Play open sound
+      openSound.currentTime = 0
+      openSound.play().catch(() => {})
+      
+      // Toggle UI overlay (remove/show when pressing E)
       useStore.setState({ showBoxOverlay: !showBoxOverlay })
     }
     lastEPress.current = ePressed
@@ -63,7 +72,7 @@ export default function SmallWoodenBox(props) {
       </mesh>
 
       {/* Crosshair hint — renders as DOM via Html, always faces camera */}
-      {isAimed && (
+      {isAimed && !showBoxOverlay && (
         <Html
           center
           position={[0, 0.22, 0]}
@@ -109,7 +118,7 @@ export default function SmallWoodenBox(props) {
               letterSpacing: '0.04em',
               fontWeight: 500,
             }}>
-              Open box
+              Look Inside
             </span>
           </div>
         </Html>

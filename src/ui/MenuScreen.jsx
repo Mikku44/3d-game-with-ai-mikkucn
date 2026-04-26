@@ -1,14 +1,47 @@
 import { useStore } from "../Game"
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 
 export default function MenuScreen() {
   const gameState = useStore(s => s.gameState)
   const setGameState = useStore(s => s.setGameState)
   const [isHovered, setIsHovered] = useState(false)
 
+  // 🔊 Hover Sound
+  const hoverAudio = useMemo(() => {
+    if (typeof Audio !== 'undefined') {
+      const audio = new Audio('/sounds/trick.mp3')
+      audio.volume = 0.4
+      return audio
+    }
+    return null
+  }, [])
+
+  // 🔊 Win/Start Sound
+  const winAudio = useMemo(() => {
+    if (typeof Audio !== 'undefined') {
+      const audio = new Audio('/sounds/win.mp3')
+      audio.volume = 0.5
+      return audio
+    }
+    return null
+  }, [])
+
+  const playHoverSound = () => {
+    if (hoverAudio) {
+      hoverAudio.currentTime = 0
+      hoverAudio.play().catch(() => {})
+    }
+  }
+
+  const playWinSound = () => {
+    if (winAudio) {
+      winAudio.currentTime = 0
+      winAudio.play().catch(() => {})
+    }
+  }
+
   if (gameState !== 'menu') return null
 
-  // Styles defined as objects for your current setup
   const styles = {
     overlay: {
       position: 'fixed',
@@ -44,6 +77,7 @@ export default function MenuScreen() {
       transition: 'all 0.2s ease-in-out',
       transform: isHovered ? 'scale(1.05)' : 'scale(1)',
       boxShadow: isHovered ? '0 0 30px rgba(255,255,255,0.4)' : 'none',
+      outline: 'none'
     },
     controls: {
       marginTop: '40px',
@@ -55,16 +89,19 @@ export default function MenuScreen() {
 
   return (
     <div style={styles.overlay}>
-      {/* Background Decor (Optional) */}
       <div style={{ position: 'absolute', width: '100%', height: '2px', background: 'rgba(255,255,255,0.1)', top: '20%' }} />
       <div style={{ position: 'absolute', width: '100%', height: '2px', background: 'rgba(255,255,255,0.1)', bottom: '20%' }} />
 
       <h1 style={styles.title}>Final Thread</h1>
 
       <button
-        onMouseEnter={() => setIsHovered(true)}
+        onMouseEnter={() => {
+          setIsHovered(true)
+          playHoverSound()
+        }}
         onMouseLeave={() => setIsHovered(false)}
         onClick={() => {
+          playWinSound() // Play win.mp3 when the game initiates
           setGameState('playing')
           document.body.requestPointerLock?.()
         }}

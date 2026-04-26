@@ -8,89 +8,14 @@ import { useGLTF } from '@react-three/drei'
 import LossOverlay from './ui/LossOverlay'
 import WinOverlay from './ui/winOverlay'
 import MenuScreen from './ui/MenuScreen'
+import BoxOverlay from './ui/BoxOverlay'
 
 function Loader() {
   const { progress } = useProgress()
   return <Html center>{progress} % loaded</Html>
 }
 
-function BoxOverlay() {
-  const { scene } = useGLTF('/models/small_wooden_box/scene.gltf')
-  const { showBoxOverlay } = useStore()
-  const objectRef = useRef()
 
-  useEffect(() => {
-    if (showBoxOverlay) {
-      document.exitPointerLock()
-    }
-  }, [showBoxOverlay])
-
-  const handlePointerOver = () => {
-    if (objectRef.current) {
-      objectRef.current.traverse((child) => {
-        if (child.material) {
-          child.material.emissive.set(0.2, 0.2, 0.2)
-        }
-      })
-    }
-  }
-
-  const handlePointerOut = () => {
-    if (objectRef.current) {
-      objectRef.current.traverse((child) => {
-        if (child.material) {
-          child.material.emissive.set(0, 0, 0)
-        }
-      })
-    }
-  }
-
-  if (!showBoxOverlay) return null
-
-  return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      background: 'rgba(0,0,0,0.8)',
-      zIndex: 1000,
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center'
-    }}>
-      <button
-        style={{
-          position: 'absolute',
-          bottom: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          padding: '10px 20px',
-          border: 'none',
-          cursor: 'pointer',
-          fontSize: '16px'
-        }}
-        onClick={() => useStore.setState({ showBoxOverlay: false })}
-      >
-        Back
-      </button>
-      <Canvas style={{ width: '50vw', height: '50vh' }}>
-        <ambientLight intensity={0.5} />
-        <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} />
-        <OrbitControls enablePan={false} enableZoom={true} />
-        <primitive
-          ref={objectRef}
-          object={scene.clone()}
-          scale={0.5}
-          onPointerOver={handlePointerOver}
-          onPointerOut={handlePointerOut}
-        />
-      </Canvas>
-    </div>
-  )
-}
 
 
 
