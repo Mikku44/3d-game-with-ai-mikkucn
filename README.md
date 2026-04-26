@@ -36,25 +36,25 @@ Follow these steps to run the project locally.
 
 ### 1. Clone the repository
 
-git clone https://github.com/Mikku44/3d-game-with-ai-mikkucn.git
+```git clone https://github.com/Mikku44/3d-game-with-ai-mikkucn.git```
 
 ---
 
 ### 2. Navigate into the project folder
 
-cd 3d-game-with-ai-mikkucn
+```cd 3d-game-with-ai-mikkucn```
 
 ---
 
 ### 3. Install dependencies
 
-npm install
+```npm install```
 
 ---
 
 ### 4. Start the development server
 
-npm start
+```npm start```
 
 ---
 
